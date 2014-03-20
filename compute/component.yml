@@ -7,6 +7,7 @@ Services:
       description: Install and configure component file
       methods:
           - install
+          - configure_local_storage
           - configure_ntp
           - configure_vhost_net
           - configure_libvirt
@@ -26,11 +27,31 @@ Services:
       description: Configure nova-compute for NFS storage
       methods:
           - configure_nfs_storage
-    - name: configure_network
-      description: Configure network
+    - name: set_option
+      description: Set the nova-compute.conf value
       methods:
-          - configure_network
+          - set_option
+    - name: create_volume
+      description: Create the volume for LVM disk images
+      methods:
+          - create_volume
+    - name: configure_local_storage
+      description: Configure the the disk images for local file system
+      methods:
+          - configure_local_storage
+    - name: configure_lvm_storage
+      description: Configure the the disk images for LVM
+      methods:
+          - configure_lvm_storage
+    - name: configure_nfs_volumes
+      description: Configure nova-compute for NFS volumes
+      methods:
+          - configure_nfs_volumes
     - name: start
       description: Start Nova-compute service
-      methods: 
+      methods:
           - start
+    - name: stop
+      description: Stop Nova-compute service
+      methods:
+          - stop

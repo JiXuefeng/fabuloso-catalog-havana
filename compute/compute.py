@@ -120,6 +120,8 @@ def compute_start():
 
 def configure_ubuntu_packages():
     """Configure compute packages"""
+    package_ensure('vlan')
+    package_ensure('bridge-utils')
     package_ensure('python-amqp')
     package_ensure('python-guestfs')
     package_ensure('python-software-properties')
@@ -146,14 +148,13 @@ def uninstall_ubuntu_packages():
     package_clean('openvswitch-datapath-dkms')
     package_clean('open-iscsi')
     package_clean('autofs')
+    package_clean('vlan')
+    package_clean('bridge-utils')
 
 
-def install(cluster=False):
+def install():
     """Generate compute configuration. Execute on both servers"""
     sudo ('chmod 0644 /boot/vmlinuz*')
-    configure_ubuntu_packages()
-    if cluster:
-        stop()
     sudo('update-rc.d neutron-plugin-openvswitch-agent defaults 98 02')
     sudo('update-rc.d nova-compute defaults 98 02')
 
@@ -163,41 +164,8 @@ def configure_forwarding():
          "/\\1/' /etc/sysctl.conf")
     sudo("echo 1 > /proc/sys/net/ipv4/ip_forward")
 
-
-def configure_network(iface_bridge='eth1', br_postfix='bond-vm',
-                      bridge_name=None,
-                      bond_parameters='bond_mode=balance-slb '
-                                      'other_config:bond-detect-mode=miimon '
-                                      'other_config:bond-miimon-interval=100',
-                      network_restart=False):
-    # Disable packet destination filter
-    sudo("sed -i -r 's/^\s*#(net\.ipv4\.conf\.all\.rp_filter=1.*)"
-         "/\\0/' /etc/sysctl.conf")
-    sudo("sed -i -r 's/^\s*#(net\.ipv4\.conf\.default\.rp_filter=1.*)"
-         "/\\0/' /etc/sysctl.conf")
-    openvswitch_start()
-    #configure_forwarding()
-    with settings(warn_only=True):
-        sudo('ovs-vsctl del-br br-%s' % br_postfix)
-    sudo('ovs-vsctl add-br br-%s' % br_postfix)
-    bonding = len(iface_bridge.split()) > 1
-    if bonding:
-        if bridge_name is not None:
-            sudo('ovs-vsctl add-port br-%s %s -- set interface %s '
-                 'type=internal' % (br_postfix, bridge_name, bridge_name))
-        if network_restart:
-            sudo('ovs-vsctl add-bond br-%s %s %s %s; reboot' %
-                 (br_postfix, br_postfix, iface_bridge, bond_parameters))
-        else:
-            sudo('ovs-vsctl add-bond br-%s %s %s %s' %
-                 (br_postfix, br_postfix, iface_bridge, bond_parameters))
-    else:
-        sudo('ovs-vsctl add-port br-%s %s' % (br_postfix, iface_bridge))
-
-
-def configure_ntp(ntp_host='ntp.ubuntu.com'):
-    sudo('echo "server %s" > /etc/ntp.conf' % ntp_host)
-
+def configure_ntp():
+    sudo('echo "server automation" > /etc/ntp.conf')
 
 def configure_vhost_net():
     sudo('modprobe vhost-net')
@@ -240,45 +208,39 @@ def configure_libvirt(hostname, shared_storage=False,
     compute_start()
 
 
-def set_config_file(management_ip='127.0.0.1', user='nova',
-                    password='stackops',
-                    auth_host='127.0.0.1', auth_port='35357',
-                    auth_protocol='http', neutron_host='127.0.0.1',
-                    libvirt_type='kvm', rabbit_host='127.0.0.1',
-                    vncproxy_host='127.0.0.1', glance_host='127.0.0.1',
-                    glance_port='9292',tenant='service',
-                    rabbit_password='guest', vncproxy_port='6080'):
-
-    if management_ip is None:
+def set_config_file(management_ip=None, controller_host=None, public_ip=None, rabbit_password='guest', mysql_username='nova',
+                    mysql_password='stackops', mysql_port='3306', mysql_schema='nova',
+                    service_user='nova', service_tenant_name='service', service_pass='stackops',
+                    auth_port='35357', auth_protocol='http', libvirt_type='kvm', vncproxy_port='6080',
+                    glance_port='9292'):
+    if controller_host is None:
         puts("{error:'Management IP of the node needed as argument'}")
         exit(0)
 
-    utils.set_option(COMPUTE_API_PASTE_CONF, 'admin_tenant_name',
-                     tenant, section='filter:authtoken')
-    utils.set_option(COMPUTE_API_PASTE_CONF, 'admin_user',
-                     user, section='filter:authtoken')
-    utils.set_option(COMPUTE_API_PASTE_CONF, 'admin_password',
-                     password, section='filter:authtoken')
-    utils.set_option(COMPUTE_API_PASTE_CONF, 'auth_host', auth_host,
-                     section='filter:authtoken')
-    utils.set_option(COMPUTE_API_PASTE_CONF, 'auth_port', auth_port,
-                     section='filter:authtoken')
-    utils.set_option(COMPUTE_API_PASTE_CONF, 'auth_protocol',
-                     auth_protocol, section='filter:authtoken')
-    utils.set_option(NOVA_COMPUTE_CONF, 'start_guests_on_host_boot', 'false')
-    utils.set_option(NOVA_COMPUTE_CONF, 'resume_guests_state_on_host_boot',
-                     'true')
-    utils.set_option(NOVA_COMPUTE_CONF, 'allow_same_net_traffic', 'True')
-    utils.set_option(NOVA_COMPUTE_CONF, 'allow_resize_to_same_host', 'True')
+    neutron_url = 'http://%s:9696' % controller_host
+    admin_auth_url = 'http://%s:35357/v2.0' % controller_host
+    auth_host = controller_host
+    mysql_host = controller_host
+    vncproxy_host = public_ip
+    glance_host = controller_host
+    rabbit_host = controller_host
 
+    utils.set_option(COMPUTE_API_PASTE_CONF, 'admin_tenant_name', service_tenant_name, section='filter:authtoken')
+    utils.set_option(COMPUTE_API_PASTE_CONF, 'admin_user', service_user, section='filter:authtoken')
+    utils.set_option(COMPUTE_API_PASTE_CONF, 'admin_password', service_pass, section='filter:authtoken')
+    utils.set_option(COMPUTE_API_PASTE_CONF, 'auth_host', auth_host, section='filter:authtoken')
+    utils.set_option(COMPUTE_API_PASTE_CONF, 'auth_port', auth_port, section='filter:authtoken')
+    utils.set_option(COMPUTE_API_PASTE_CONF, 'auth_protocol', auth_protocol, section='filter:authtoken')
+
+    utils.set_option(NOVA_COMPUTE_CONF, 'sql_connection',
+        utils.sql_connect_string(mysql_host, mysql_password, mysql_port, mysql_schema, mysql_username))
     utils.set_option(NOVA_COMPUTE_CONF, 'verbose', 'true')
     utils.set_option(NOVA_COMPUTE_CONF, 'auth_strategy', 'keystone')
     utils.set_option(NOVA_COMPUTE_CONF, 'use_deprecated_auth', 'false')
     utils.set_option(NOVA_COMPUTE_CONF, 'logdir', '/var/log/nova')
     utils.set_option(NOVA_COMPUTE_CONF, 'state_path', '/var/lib/nova')
     utils.set_option(NOVA_COMPUTE_CONF, 'lock_path', '/var/lock/nova')
-    utils.set_option(NOVA_COMPUTE_CONF, 'root_helper',
-                     'sudo nova-rootwrap /etc/nova/rootwrap.conf')
+    utils.set_option(NOVA_COMPUTE_CONF, 'root_helper', 'sudo nova-rootwrap /etc/nova/rootwrap.conf')
     utils.set_option(NOVA_COMPUTE_CONF, 'verbose', 'true')
     utils.set_option(NOVA_COMPUTE_CONF, 'rpc_backend', 'nova.rpc.impl_kombu')
     utils.set_option(NOVA_COMPUTE_CONF, 'rabbit_host', rabbit_host)
@@ -305,10 +267,8 @@ def set_config_file(management_ip='127.0.0.1', user='nova',
                      'stackops')
     utils.set_option(NOVA_COMPUTE_CONF, 'neutron_admin_tenant_name',
                      'service')
-    admin_auth_url = 'http://' + auth_host + ':35357/v2.0'
     utils.set_option(NOVA_COMPUTE_CONF, 'neutron_admin_auth_url',
                      admin_auth_url)
-    neutron_url = 'http://' + neutron_host + ':9696'
     utils.set_option(NOVA_COMPUTE_CONF, 'neutron_url',
                      neutron_url)
     utils.set_option(NOVA_COMPUTE_CONF, 'novncproxy_base_url',
@@ -342,7 +302,6 @@ def set_config_file(management_ip='127.0.0.1', user='nova',
 
     utils.set_option(NOVA_COMPUTE_CONF, 'allow_same_net_traffic',
                      'True')
-    utils.set_option(NOVA_COMPUTE_CONF, 'nfs_mount_point_base', NOVA_VOLUMES)
 
     start()
 
@@ -399,7 +358,7 @@ def configure_neutron(user='neutron', password='stackops',
     neutron_plugin_openvswitch_agent_start()
 
 
-def configure_ovs_plugin_gre(mysql_username='neutron',
+def configure_ovs_plugin_gre(local_ip=None, mysql_username='neutron',
                              mysql_password='stackops',
                              mysql_host='127.0.0.1', mysql_port='3306',
                              mysql_schema='neutron'):
@@ -413,7 +372,7 @@ def configure_ovs_plugin_gre(mysql_username='neutron',
     utils.set_option(OVS_PLUGIN_CONF, 'tenant_network_type', 'gre',
                      section='OVS')
     utils.set_option(OVS_PLUGIN_CONF, 'tunnel_id_ranges', '1:1000',
-                     section='OVS')
+    utils.set_option(OVS_PLUGIN_CONF,'local_ip', local_ip, section='OVS')
     utils.set_option(OVS_PLUGIN_CONF, 'integration_bridge', 'br-int',
                      section='OVS')
     utils.set_option(OVS_PLUGIN_CONF, 'tunnel_bridge', 'br-tun',
@@ -534,75 +493,31 @@ def configure_ml2_plugin_vlan(br_postfix='bond-vm', vlan_start='2',
     neutron_plugin_openvswitch_agent_start()
 
 
-def get_memory_available():
-    return 1024 * int(sudo("cat /proc/meminfo | grep 'MemTotal' | "
-                           "sed 's/[^0-9\.]//g'"))
-
-
-def configure_hugepages(is_hugepages_enabled=True, percentage='70'):
-    ''' enable/disable huge pages in the system'''
-    sudo("sed -i '/hugepages/d' /etc/apparmor.d/abstractions/libvirt-qemu")
-    sudo('sed -i /hugetlbfs/d /etc/fstab')
-    sudo("sed -i '/hugepages/d' "
-         "/usr/share/pyshared/nova/virt/libvirt.xml.template")
-    with settings(warn_only=True):
-        sudo('rm etc/sysctl.d/60-hugepages.conf')
-        sudo('umount /dev/hugepages')
-    if is_hugepages_enabled:
-        pages = int(0.01 * int(percentage) *
-                    int(get_memory_available() / PAGE_SIZE)) + BONUS_PAGES
-        sudo("echo '  owner /dev/hugepages/libvirt/qemu/* rw,' >> "
-             "/etc/apparmor.d/abstractions/libvirt-qemu")
-        sudo('mkdir /dev/hugepages')
-        sudo('echo "hugetlbfs       /dev/hugepages  hugetlbfs     '
-             'defaults        0 0\n" >> /etc/fstab')
-        sudo('mount -t hugetlbfs hugetlbfs /dev/hugepages')
-        sudo('echo "vm.nr_hugepages = %s" > /etc/sysctl.d/60-hugepages.conf'
-             % pages)
-        sudo('sysctl vm.nr_hugepages=%s' % pages)
-        sudo("sysctl -p /etc/sysctl.conf")
-
-        # modify libvirt template to enable hugepages
-        sudo("sed -i 's#</domain>#\\t<memoryBacking><hugepages/>"
-             "</memoryBacking>\\n</domain>#g' "
-             "/usr/share/pyshared/nova/virt/libvirt.xml.template")
-
-
 def configure_nfs_storage(nfs_server, delete_content=False,
                           set_nova_owner=True,
                           nfs_server_mount_point_params='defaults'):
     package_ensure('nfs-common')
     package_ensure('autofs')
+    utils.set_option(NOVA_COMPUTE_CONF, 'libvirt_images_type', 'default')
     if delete_content:
         sudo('rm -fr %s' % NOVA_INSTANCES)
-        sudo('rm -fr %s' % NOVA_VOLUMES)
     stop()
     nova_instance_exists = file_exists(NOVA_INSTANCES)
-    nova_volumes_exists = file_exists(NOVA_VOLUMES)
     if not nova_instance_exists:
         sudo('mkdir -p %s' % NOVA_INSTANCES)
-    if not nova_volumes_exists:
-        sudo('mkdir -p %s' % NOVA_VOLUMES)
-#    mpoint = '%s %s nfs _netdev,nobootwait,bg,vers=3,
-# %s 0 0' % (endpoint, NOVA_INSTANCES, endpoint_params)
     mpoint = '%s  -fstype=nfs,vers=3,%s   %s' % \
              (NOVA_INSTANCES, nfs_server_mount_point_params, nfs_server)
     sudo('''echo "/-    /etc/auto.nfs" > /etc/auto.master''')
     sudo('''echo "%s" > /etc/auto.nfs''' % mpoint)
-#    sudo('sed -i "#%s#d" /etc/fstab' % NOVA_INSTANCES)
-#    sudo('echo "\n%s" >> /etc/fstab' % mpoint)
-#    sudo('mount -a')
     sudo('service autofs restart')
     with settings(warn_only=True):
         if set_nova_owner:
             if not nova_instance_exists:
                 sudo('chown nova:nova -R %s' % NOVA_INSTANCES)
-            if not nova_volumes_exists:
-                sudo('chown nova:nova -R %s' % NOVA_VOLUMES)
     start()
 
-
 def configure_local_storage(delete_content=False, set_nova_owner=True):
+    utils.set_option(NOVA_COMPUTE_CONF, 'libvirt_images_type', 'default')
     if delete_content:
         sudo('rm -fr %s' % NOVA_INSTANCES)
     stop()
@@ -610,4 +525,39 @@ def configure_local_storage(delete_content=False, set_nova_owner=True):
     sudo('mkdir -p %s' % NOVA_INSTANCES)
     if set_nova_owner:
         sudo('chown nova:nova -R %s' % NOVA_INSTANCES)
+    start()
+
+def create_volume(partition='/dev/sdb1',name='nova-volume'):
+    sudo('pvcreate %s' % partition)
+    sudo('vgcreate %s %s' % (name,partition))
+
+def configure_lvm_storage(name='nova-volume',sparse='True'):
+    utils.set_option(NOVA_COMPUTE_CONF, 'libvirt_images_type', 'lvm')
+    utils.set_option(NOVA_COMPUTE_CONF, 'libvirt_images_volume_group', name)
+    utils.set_option(NOVA_COMPUTE_CONF, 'libvirt_sparse_logical_volumes', sparse)
+    start()
+
+def set_option(property='',value=''):
+    utils.set_option(NOVA_COMPUTE_CONF, property, value)
+
+def configure_nfs_volumes(delete_content=False,
+                          set_nova_owner=True):
+    package_ensure('nfs-common')
+    package_ensure('autofs')
+    utils.set_option(NOVA_COMPUTE_CONF, 'nfs_mount_point_base', NOVA_VOLUMES)
+    if delete_content:
+        sudo('rm -fr %s' % NOVA_VOLUMES)
+    stop()
+    nova_volumes_exists = file_exists(NOVA_VOLUMES)
+    if not nova_volumes_exists:
+        sudo('mkdir -p %s' % NOVA_VOLUMES)
+    with settings(warn_only=True):
+        if set_nova_owner:
+            if not nova_volumes_exists:
+                sudo('chown nova:nova -R %s' % NOVA_VOLUMES)
+    start()
+
+def configure_rescue_image(uuid=None):
+    stop()
+    utils.set_option(NOVA_COMPUTE_CONF, 'rescue_image_id', uuid)
     start()
