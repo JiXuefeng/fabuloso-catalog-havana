@@ -156,7 +156,7 @@ def uninstall_ubuntu_packages():
 
 def install():
     """Generate compute configuration. Execute on both servers"""
-    sudo ('chmod 0644 /boot/vmlinuz*')
+    sudo('chmod 0644 /boot/vmlinuz*')
     configure_ubuntu_packages()
     sudo('update-rc.d neutron-plugin-openvswitch-agent defaults 98 02')
     sudo('update-rc.d nova-compute defaults 98 02')
@@ -167,8 +167,10 @@ def configure_forwarding():
          "/\\1/' /etc/sysctl.conf")
     sudo("echo 1 > /proc/sys/net/ipv4/ip_forward")
 
+
 def configure_ntp():
     sudo('echo "server automation" > /etc/ntp.conf')
+
 
 def configure_vhost_net():
     sudo('modprobe vhost-net')
@@ -211,9 +213,11 @@ def configure_libvirt(hostname, shared_storage=False,
     compute_start()
 
 
-def set_config_file(management_ip=None, controller_host=None, public_ip=None, rabbit_password='guest', mysql_username='nova',
-                    mysql_password='stackops', mysql_port='3306', mysql_schema='nova',
-                    service_user='nova', service_tenant_name='service', service_pass='stackops',
+def set_config_file(management_ip=None, controller_host=None, novnc_host=None, auth_host=None, nova_mysql_host=None,
+                    glance_host=None, rabbit_host=None, rabbit_password='guest',
+                    nova_mysql_username='nova',
+                    nova_mysql_password='stackops', nova_mysql_port='3306', nova_mysql_schema='nova',
+                    nova_service_user='nova', nova_service_tenant='service', nova_service_pass='stackops',
                     auth_port='35357', auth_protocol='http', libvirt_type='kvm', vncproxy_port='6080',
                     glance_port='9292'):
     if controller_host is None:
@@ -222,21 +226,21 @@ def set_config_file(management_ip=None, controller_host=None, public_ip=None, ra
 
     neutron_url = 'http://%s:9696' % controller_host
     admin_auth_url = 'http://%s:35357/v2.0' % controller_host
-    auth_host = controller_host
-    mysql_host = controller_host
-    vncproxy_host = public_ip
-    glance_host = controller_host
-    rabbit_host = controller_host
+    auth_host = auth_host
+    mysql_host = nova_mysql_host
+    vncproxy_host = novnc_host
+    glance_host = glance_host
+    rabbit_host = rabbit_host
 
-    utils.set_option(COMPUTE_API_PASTE_CONF, 'admin_tenant_name', service_tenant_name, section='filter:authtoken')
-    utils.set_option(COMPUTE_API_PASTE_CONF, 'admin_user', service_user, section='filter:authtoken')
-    utils.set_option(COMPUTE_API_PASTE_CONF, 'admin_password', service_pass, section='filter:authtoken')
+    utils.set_option(COMPUTE_API_PASTE_CONF, 'admin_tenant_name', nova_service_tenant, section='filter:authtoken')
+    utils.set_option(COMPUTE_API_PASTE_CONF, 'admin_user', nova_service_user, section='filter:authtoken')
+    utils.set_option(COMPUTE_API_PASTE_CONF, 'admin_password', nova_service_pass, section='filter:authtoken')
     utils.set_option(COMPUTE_API_PASTE_CONF, 'auth_host', auth_host, section='filter:authtoken')
     utils.set_option(COMPUTE_API_PASTE_CONF, 'auth_port', auth_port, section='filter:authtoken')
     utils.set_option(COMPUTE_API_PASTE_CONF, 'auth_protocol', auth_protocol, section='filter:authtoken')
 
     utils.set_option(NOVA_COMPUTE_CONF, 'sql_connection',
-        utils.sql_connect_string(mysql_host, mysql_password, mysql_port, mysql_schema, mysql_username))
+                     utils.sql_connect_string(nova_mysql_host, nova_mysql_password, nova_mysql_port, nova_mysql_schema, nova_mysql_username))
     utils.set_option(NOVA_COMPUTE_CONF, 'verbose', 'true')
     utils.set_option(NOVA_COMPUTE_CONF, 'auth_strategy', 'keystone')
     utils.set_option(NOVA_COMPUTE_CONF, 'use_deprecated_auth', 'false')
@@ -293,7 +297,7 @@ def set_config_file(management_ip=None, controller_host=None, public_ip=None, ra
     # Change for havana to use the neutron fw and security group
     utils.set_option(NOVA_COMPUTE_CONF, 'firewall_driver',
                      'nova.virt.firewall.NoopFirewallDriver')
-    utils.set_option(NOVA_COMPUTE_CONF, 'security_group_api','neutron')
+    utils.set_option(NOVA_COMPUTE_CONF, 'security_group_api', 'neutron')
     utils.set_option(NOVA_COMPUTE_CONF, 'ec2_private_dns_show_ip', 'True')
     utils.set_option(NOVA_COMPUTE_CONF, 'network_api_class',
                      'nova.network.neutronv2.api.API')
@@ -305,13 +309,13 @@ def set_config_file(management_ip=None, controller_host=None, public_ip=None, ra
 
     utils.set_option(NOVA_COMPUTE_CONF, 'allow_same_net_traffic',
                      'True')
-    utils.set_option(NOVA_COMPUTE_CONF, 'allow_resize_to_same_host','True')
+    utils.set_option(NOVA_COMPUTE_CONF, 'allow_resize_to_same_host', 'True')
     start()
 
 
-def configure_neutron(user='neutron', password='stackops',
+def configure_neutron(neutron_service_user='neutron', neutron_service_password='stackops',
                       auth_host='127.0.0.1', auth_port='35357',
-                      auth_protocol='http', tenant='service',
+                      auth_protocol='http', neutron_service_tenant='service',
                       rabbit_password='guest', rabbit_host='127.0.0.1',
                       neutron_mysql_username='neutron',
                       neutron_mysql_password='stackops',
@@ -332,11 +336,11 @@ def configure_neutron(user='neutron', password='stackops',
         mysql_host, neutron_mysql_password, mysql_port, neutron_mysql_schema, neutron_mysql_username),
                      section='database')
     utils.set_option(NEUTRON_CONF, 'admin_tenant_name',
-                     tenant, section='keystone_authtoken')
+                     neutron_service_tenant, section='keystone_authtoken')
     utils.set_option(NEUTRON_CONF, 'admin_user',
-                     user, section='keystone_authtoken')
+                     neutron_service_user, section='keystone_authtoken')
     utils.set_option(NEUTRON_CONF, 'admin_password',
-                     password, section='keystone_authtoken')
+                     neutron_service_password, section='keystone_authtoken')
     utils.set_option(NEUTRON_CONF, 'auth_host', auth_host,
                      section='keystone_authtoken')
     utils.set_option(NEUTRON_CONF, 'auth_port', auth_port,
@@ -347,11 +351,11 @@ def configure_neutron(user='neutron', password='stackops',
     utils.set_option(NEUTRON_CONF, 'auth_url', auth_uri,
                      section='keystone_authtoken')
     utils.set_option(NEUTRON_API_PASTE_CONF, 'admin_tenant_name',
-                     tenant, section='filter:authtoken')
+                     neutron_service_tenant, section='filter:authtoken')
     utils.set_option(NEUTRON_API_PASTE_CONF, 'admin_user',
-                     user, section='filter:authtoken')
+                     neutron_service_user, section='filter:authtoken')
     utils.set_option(NEUTRON_API_PASTE_CONF, 'admin_password',
-                     password, section='filter:authtoken')
+                     neutron_service_password, section='filter:authtoken')
     utils.set_option(NEUTRON_API_PASTE_CONF, 'auth_host', auth_host,
                      section='filter:authtoken')
     utils.set_option(NEUTRON_API_PASTE_CONF, 'auth_port',
@@ -361,14 +365,14 @@ def configure_neutron(user='neutron', password='stackops',
     neutron_plugin_openvswitch_agent_start()
 
 
-def configure_ovs_plugin_gre(local_ip=None, mysql_username='neutron',
-                             mysql_password='stackops',
-                             mysql_host='127.0.0.1', mysql_port='3306',
-                             mysql_schema='neutron'):
+def configure_ovs_plugin_gre(local_ip=None, neutron_mysql_username='neutron',
+                             neutron_mysql_password='stackops',
+                             neutron_mysql_host='127.0.0.1', neutron_mysql_port='3306',
+                             neutron_mysql_schema='neutron'):
     utils.set_option(OVS_PLUGIN_CONF, 'sql_connection',
-                     utils.sql_connect_string(mysql_host, mysql_password,
-                                              mysql_port, mysql_schema,
-                                              mysql_username),
+                     utils.sql_connect_string(neutron_mysql_host, neutron_mysql_password,
+                                              neutron_mysql_port, neutron_mysql_schema,
+                                              neutron_mysql_username),
                      section='DATABASE')
     utils.set_option(OVS_PLUGIN_CONF, 'reconnect_interval', '2',
                      section='DATABASE')
@@ -376,7 +380,7 @@ def configure_ovs_plugin_gre(local_ip=None, mysql_username='neutron',
                      section='OVS')
     utils.set_option(OVS_PLUGIN_CONF, 'tunnel_id_ranges', '1:1000',
                      section='OVS')
-    utils.set_option(OVS_PLUGIN_CONF,'local_ip', local_ip,
+    utils.set_option(OVS_PLUGIN_CONF, 'local_ip', local_ip,
                      section='OVS')
     utils.set_option(OVS_PLUGIN_CONF, 'integration_bridge', 'br-int',
                      section='OVS')
@@ -400,12 +404,12 @@ def configure_ovs_plugin_gre(local_ip=None, mysql_username='neutron',
 
 def configure_ml2_plugin_vxlan(neutron_mysql_username='neutron',
                                neutron_mysql_password='stackops',
-                               mysql_host='127.0.0.1', mysql_port='3306',
+                               neutron_mysql_host='127.0.0.1', neutron_mysql_port='3306',
                                neutron_mysql_schema='neutron',
                                local_ip='127.0.0.1'):
     # TODO Fix that when ml2-neutron-plugin will be added in icehouse
     sudo('mkdir -p /etc/neutron/plugins/ml2')
-    sudo('ln -s %s %s' %(OVS_PLUGIN_CONF, ML2_PLUGIN_CONF))
+    sudo('ln -s %s %s' % (OVS_PLUGIN_CONF, ML2_PLUGIN_CONF))
     sudo('echo "''" > %s' % OVS_PLUGIN_CONF)
     sudo('echo [ml2] >> %s' % OVS_PLUGIN_CONF)
     sudo('echo [ovs] >> %s' % OVS_PLUGIN_CONF)
@@ -429,8 +433,8 @@ def configure_ml2_plugin_vxlan(neutron_mysql_username='neutron',
                      section='ovs')
     # database section
     utils.set_option(OVS_PLUGIN_CONF, 'connection',
-                     utils.sql_connect_string(mysql_host, neutron_mysql_password,
-                                              mysql_port, neutron_mysql_schema,
+                     utils.sql_connect_string(neutron_mysql_host, neutron_mysql_password,
+                                              neutron_mysql_port, neutron_mysql_schema,
                                               neutron_mysql_username),
                      section='database')
     # security group section
@@ -453,11 +457,11 @@ def configure_ml2_plugin_vxlan(neutron_mysql_username='neutron',
 def configure_ml2_plugin_vlan(br_postfix='bond-vm', vlan_start='2',
                               vlan_end='4094', neutron_mysql_username='neutron',
                               neutron_mysql_password='stackops',
-                              mysql_host='127.0.0.1', mysql_port='3306',
+                              neutron_mysql_host='127.0.0.1', neutron_mysql_port='3306',
                               neutron_mysql_schema='neutron'):
     # TODO Fix that when ml2-neutron-plugin will be added in icehouse
     sudo('mkdir -p /etc/neutron/plugins/ml2')
-    sudo('ln -s %s %s' %(OVS_PLUGIN_CONF, ML2_PLUGIN_CONF))
+    sudo('ln -s %s %s' % (OVS_PLUGIN_CONF, ML2_PLUGIN_CONF))
     sudo('echo "''" > %s' % OVS_PLUGIN_CONF)
     sudo('echo [ml2] >> %s' % OVS_PLUGIN_CONF)
     sudo('echo [ovs] >> %s' % OVS_PLUGIN_CONF)
@@ -474,13 +478,13 @@ def configure_ml2_plugin_vlan(br_postfix='bond-vm', vlan_start='2',
                      'openvswitch,linuxbridge', section='ml2')
     # ml2_type_vlan section
     utils.set_option(OVS_PLUGIN_CONF, 'network_vlan_ranges', 'physnet1:%s:%s'
-                     % (vlan_start, vlan_end), section='ml2_type_vlan')
+                                                             % (vlan_start, vlan_end), section='ml2_type_vlan')
     utils.set_option(OVS_PLUGIN_CONF, 'bridge_mappings',
                      'physnet1:br-%s' % br_postfix, section='ovs')
     # database section
     utils.set_option(OVS_PLUGIN_CONF, 'connection',
-                     utils.sql_connect_string(mysql_host, neutron_mysql_password,
-                                              mysql_port, neutron_mysql_schema,
+                     utils.sql_connect_string(neutron_mysql_host, neutron_mysql_password,
+                                              neutron_mysql_port, neutron_mysql_schema,
                                               neutron_mysql_username),
                      section='database')
     # security group section
@@ -521,6 +525,7 @@ def configure_nfs_storage(nfs_server, delete_content=False,
                 sudo('chown nova:nova -R %s' % NOVA_INSTANCES)
     start()
 
+
 def configure_local_storage(delete_content=False, set_nova_owner=True):
     utils.set_option(NOVA_COMPUTE_CONF, 'libvirt_images_type', 'default')
     if delete_content:
@@ -532,18 +537,22 @@ def configure_local_storage(delete_content=False, set_nova_owner=True):
         sudo('chown nova:nova -R %s' % NOVA_INSTANCES)
     start()
 
-def create_volume(partition='/dev/sdb1',name='nova-volume'):
-    sudo('pvcreate %s' % partition)
-    sudo('vgcreate %s %s' % (name,partition))
 
-def configure_lvm_storage(name='nova-volume',sparse='True'):
+def create_volume(partition='/dev/sdb1', name='nova-volume'):
+    sudo('pvcreate %s' % partition)
+    sudo('vgcreate %s %s' % (name, partition))
+
+
+def configure_lvm_storage(name='nova-volume', sparse='True'):
     utils.set_option(NOVA_COMPUTE_CONF, 'libvirt_images_type', 'lvm')
     utils.set_option(NOVA_COMPUTE_CONF, 'libvirt_images_volume_group', name)
     utils.set_option(NOVA_COMPUTE_CONF, 'libvirt_sparse_logical_volumes', sparse)
     start()
 
-def set_option(property='',value=''):
+
+def set_option(property='', value=''):
     utils.set_option(NOVA_COMPUTE_CONF, property, value)
+
 
 def configure_nfs_volumes(delete_content=False,
                           set_nova_owner=True):
@@ -562,10 +571,12 @@ def configure_nfs_volumes(delete_content=False,
                 sudo('chown nova:nova -R %s' % NOVA_VOLUMES)
     start()
 
+
 def configure_rescue_image(uuid=None):
     stop()
     utils.set_option(NOVA_COMPUTE_CONF, 'rescue_image_id', uuid)
     start()
+
 
 def configure_network(iface_bridge='eth0 eth1', br_postfix='bond0',
                       management_bridge="br-mgmt", vxlan_bridge="br-vxlan",
@@ -581,20 +592,23 @@ def configure_network(iface_bridge='eth0 eth1', br_postfix='bond0',
     openvswitch_start()
     #configure_forwarding()
     try:
-       command=""
-       with settings(warn_only=True):
-           command +='ovs-vsctl del-br br-%s; ' % br_postfix
-       command += 'ovs-vsctl add-br br-%s; ' % br_postfix
-       if management_bridge:
-           command += 'ovs-vsctl add-port br-%s %s -- set interface %s type=internal; ' % (br_postfix, management_bridge, management_bridge)
-       if vxlan_bridge:
-           command += 'ovs-vsctl add-port br-%s %s -- set interface %s type=internal; ' % (br_postfix, vxlan_bridge, vxlan_bridge)
-       if network_restart:
-           command += 'ovs-vsctl add-bond br-%s %s %s %s; reboot' % (br_postfix, br_postfix, iface_bridge, bond_parameters)
-       else:
-           command += 'ovs-vsctl add-bond br-%s %s %s %s' % (br_postfix, br_postfix, iface_bridge, bond_parameters)
-       sudo("echo '%s'" % command)
-       sudo(command)
+        command = ""
+        with settings(warn_only=True):
+            command += 'ovs-vsctl del-br br-%s; ' % br_postfix
+        command += 'ovs-vsctl add-br br-%s; ' % br_postfix
+        if management_bridge:
+            command += 'ovs-vsctl add-port br-%s %s -- set interface %s type=internal; ' % (
+                br_postfix, management_bridge, management_bridge)
+        if vxlan_bridge:
+            command += 'ovs-vsctl add-port br-%s %s -- set interface %s type=internal; ' % (
+                br_postfix, vxlan_bridge, vxlan_bridge)
+        if network_restart:
+            command += 'ovs-vsctl add-bond br-%s %s %s %s; reboot' % (
+                br_postfix, br_postfix, iface_bridge, bond_parameters)
+        else:
+            command += 'ovs-vsctl add-bond br-%s %s %s %s' % (br_postfix, br_postfix, iface_bridge, bond_parameters)
+        sudo("echo '%s'" % command)
+        sudo(command)
     except:
         print sys.exc_info()[0]
         raise
