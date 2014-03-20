@@ -49,7 +49,7 @@ def network_start():
 
 
 def _configureBondFile(bond_name, bond_slaves, bond_options):
-    interfaces = sudo('cat "/etc/network/interfaces"')
+    interfaces = sudo('sed "s/^M//g" /etc/network/interfaces')
     # Create bond interface
     interfaces = '\n'.join((
         interfaces,
@@ -406,7 +406,7 @@ def configure_network(management_iface="",
 def add_iface(iface="", dhcp="false", static="true", address="", netmask="", gateway="", broadcast="", network="",
               dns_list="", domain="", bridge="", mtu="", txqueuelen=""):
     """Update /etc/network/interfaces with info for the current scheme"""
-    interfaces = sudo('cat "/etc/network/interfaces"')
+    interfaces = sudo("sed 's/^M//g' /etc/network/interfaces")
 
     # Write the entry for the new interface
     interfaces += "\n \n# STARTS CONFIGURATION OF %s" % iface
@@ -679,14 +679,14 @@ def config_10gnetwork(config_10g_network="false"):
         |net.core.rmem_max=16777216
         |net.core.wmem_default=262144
         |net.core.wmem_max=16777216
-        |net.ipv4.tcp_rmem="4096 262144 16777216"
-        |net.ipv4.tcp_wmem="4096 262144 16777216"
+        |net.ipv4.tcp_rmem=4096 262144 16777216
+        |net.ipv4.tcp_wmem=4096 262144 16777216
         |net.ipv4.tcp_window_scaling=1
         |net.ipv4.tcp_syncookies=0
         |net.ipv4.tcp_timestamps=0
         |net.ipv4.tcp_sack=0
         |net.ipv4.tcp_no_metrics_save=1
-        |net.ipv4.tcp_congestion_control="cubic"
+        |net.ipv4.tcp_congestion_control=cubic
         |net.core.netdev_max_backlog=250000
         |net.ipv4.tcp_mtu_probing=1
         |''')

@@ -4,17 +4,26 @@ description: Operations over Node Compute component
 
 Services:
     - name: install
-      description: Install and configure component file
+      description: Install component file
       methods:
           - install
+          - configure_network
+    - name: configure
+      description: Install and configure component file
+      methods:
           - configure_local_storage
           - configure_ntp
           - configure_vhost_net
           - configure_libvirt
           - set_config_file
+          - configure_rescue_image
           - configure_neutron
           - configure_ml2_plugin_vxlan
           - start
+    - name: configure_network
+      description: Configure basic network configuration
+      methods:
+          - configure_network
     - name: configure_ml2_plugin_vxlan
       description: Configure the ml2 plugin vxlan
       methods:
@@ -55,3 +64,8 @@ Services:
       description: Stop Nova-compute service
       methods:
           - stop
+    - name: configure_rescue_image
+      description: Configure the rescue image available if any
+      methods:
+          - configure_rescue_image
+

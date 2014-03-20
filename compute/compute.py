@@ -17,6 +17,8 @@ from cuisine import *
 
 import fabuloso.utils as utils
 
+import sys
+
 PAGE_SIZE = 2 * 1024 * 1024
 BONUS_PAGES = 40
 
@@ -155,6 +157,7 @@ def uninstall_ubuntu_packages():
 def install():
     """Generate compute configuration. Execute on both servers"""
     sudo ('chmod 0644 /boot/vmlinuz*')
+    configure_ubuntu_packages()
     sudo('update-rc.d neutron-plugin-openvswitch-agent defaults 98 02')
     sudo('update-rc.d nova-compute defaults 98 02')
 
@@ -302,7 +305,7 @@ def set_config_file(management_ip=None, controller_host=None, public_ip=None, ra
 
     utils.set_option(NOVA_COMPUTE_CONF, 'allow_same_net_traffic',
                      'True')
-
+    utils.set_option(NOVA_COMPUTE_CONF, 'allow_resize_to_same_host','True')
     start()
 
 
@@ -563,3 +566,35 @@ def configure_rescue_image(uuid=None):
     stop()
     utils.set_option(NOVA_COMPUTE_CONF, 'rescue_image_id', uuid)
     start()
+
+def configure_network(iface_bridge='eth0 eth1', br_postfix='bond0',
+                      management_bridge="br-mgmt", vxlan_bridge="br-vxlan",
+                      bond_parameters='bond_mode=balance-slb '
+                                      'other_config:bond-detect-mode=miimon '
+                                      'other_config:bond-miimon-interval=100',
+                      network_restart=False):
+    # Disable packet destination filter
+    sudo("sed -i -r 's/^\s*#(net\.ipv4\.conf\.all\.rp_filter=1.*)"
+         "/\\0/' /etc/sysctl.conf")
+    sudo("sed -i -r 's/^\s*#(net\.ipv4\.conf\.default\.rp_filter=1.*)"
+         "/\\0/' /etc/sysctl.conf")
+    openvswitch_start()
+    #configure_forwarding()
+    try:
+       command=""
+       with settings(warn_only=True):
+           command +='ovs-vsctl del-br br-%s; ' % br_postfix
+       command += 'ovs-vsctl add-br br-%s; ' % br_postfix
+       if management_bridge:
+           command += 'ovs-vsctl add-port br-%s %s -- set interface %s type=internal; ' % (br_postfix, management_bridge, management_bridge)
+       if vxlan_bridge:
+           command += 'ovs-vsctl add-port br-%s %s -- set interface %s type=internal; ' % (br_postfix, vxlan_bridge, vxlan_bridge)
+       if network_restart:
+           command += 'ovs-vsctl add-bond br-%s %s %s %s; reboot' % (br_postfix, br_postfix, iface_bridge, bond_parameters)
+       else:
+           command += 'ovs-vsctl add-bond br-%s %s %s %s' % (br_postfix, br_postfix, iface_bridge, bond_parameters)
+       sudo("echo '%s'" % command)
+       sudo(command)
+    except:
+        print sys.exc_info()[0]
+        raise

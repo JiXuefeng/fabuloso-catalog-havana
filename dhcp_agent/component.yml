@@ -4,9 +4,12 @@ description: DHCP agent
 
 Services:
     - name: install
-      description: Install and configure the dhcp agent
+      description: Install the dhcp agent
       methods:
           - install
+    - name: configure
+      description: Configure the dhcp agent
+      methods:
           - configure_dhcp_agent
           - set_config_file
           - start

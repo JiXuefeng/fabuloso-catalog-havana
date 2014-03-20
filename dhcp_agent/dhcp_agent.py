@@ -62,8 +62,6 @@ def uninstall_ubuntu_packages():
 def install(cluster=False):
     """Generate neutron configuration. Execute on both servers"""
     configure_ubuntu_packages()
-    if cluster:
-        stop()
     sudo('update-rc.d neutron-dhcp-agent defaults 98 02')
 
 
