@@ -372,7 +372,9 @@ def configure_ovs_plugin_gre(local_ip=None, mysql_username='neutron',
     utils.set_option(OVS_PLUGIN_CONF, 'tenant_network_type', 'gre',
                      section='OVS')
     utils.set_option(OVS_PLUGIN_CONF, 'tunnel_id_ranges', '1:1000',
-    utils.set_option(OVS_PLUGIN_CONF,'local_ip', local_ip, section='OVS')
+                     section='OVS')
+    utils.set_option(OVS_PLUGIN_CONF,'local_ip', local_ip,
+                     section='OVS')
     utils.set_option(OVS_PLUGIN_CONF, 'integration_bridge', 'br-int',
                      section='OVS')
     utils.set_option(OVS_PLUGIN_CONF, 'tunnel_bridge', 'br-tun',
