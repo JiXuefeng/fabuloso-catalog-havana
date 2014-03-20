@@ -213,22 +213,22 @@ def configure_libvirt(hostname, shared_storage=False,
     compute_start()
 
 
-def set_config_file(management_ip=None, controller_host=None, novnc_host=None, auth_host=None, nova_mysql_host=None,
+def set_config_file(management_ip=None, controller_host=None, vncproxy_host=None, auth_host=None, nova_mysql_host=None,
                     glance_host=None, rabbit_host=None, rabbit_password='guest',
                     nova_mysql_username='nova',
                     nova_mysql_password='stackops', nova_mysql_port='3306', nova_mysql_schema='nova',
                     nova_service_user='nova', nova_service_tenant='service', nova_service_pass='stackops',
-                    auth_port='35357', auth_protocol='http', libvirt_type='kvm', vncproxy_port='6080',
+                    auth_port='35357', auth_protocol='http', libvirt_type='kvm', vncproxy_protocol="https", vncproxy_port='6080',
                     glance_port='9292'):
     if controller_host is None:
         puts("{error:'Management IP of the node needed as argument'}")
         exit(0)
 
     neutron_url = 'http://%s:9696' % controller_host
-    admin_auth_url = 'http://%s:35357/v2.0' % controller_host
+    admin_auth_url = 'http://%s:35357/v2.0' % auth_host
+    vncproxy_url = '%s://%s:%s/vnc_auto.html' % (vncproxy_protocol, vncproxy_host, vncproxy_port)
     auth_host = auth_host
     mysql_host = nova_mysql_host
-    vncproxy_host = novnc_host
     glance_host = glance_host
     rabbit_host = rabbit_host
 
@@ -263,7 +263,7 @@ def set_config_file(management_ip=None, controller_host=None, novnc_host=None, a
     utils.set_option(NOVA_COMPUTE_CONF, 'libvirt_ovs_bridge', 'br-int')
     utils.set_option(NOVA_COMPUTE_CONF, 'libvirt_vif_type', 'ethernet')
     utils.set_option(NOVA_COMPUTE_CONF, 'libvirt_vif_driver',
-                     'nova.virt.libvirt.vif.LibvirtHybridOVSBridgeDriver')
+                     'nova.virt.libvirt.vif.LibvirtGenericVIFDriver')
     utils.set_option(NOVA_COMPUTE_CONF, 'libvirt_use_virtio_for_bridges',
                      'true')
     utils.set_option(NOVA_COMPUTE_CONF, 'neutron_auth_strategy',
@@ -278,9 +278,7 @@ def set_config_file(management_ip=None, controller_host=None, novnc_host=None, a
                      admin_auth_url)
     utils.set_option(NOVA_COMPUTE_CONF, 'neutron_url',
                      neutron_url)
-    utils.set_option(NOVA_COMPUTE_CONF, 'novncproxy_base_url',
-                     'http://%s:%s/vnc_auto.html'
-                     % (vncproxy_host, vncproxy_port))
+    utils.set_option(NOVA_COMPUTE_CONF, 'novncproxy_base_url', vncproxy_url)
     utils.set_option(NOVA_COMPUTE_CONF, 'vncserver_listen', '0.0.0.0')
     utils.set_option(NOVA_COMPUTE_CONF, 'vnc_enabled', 'true')
     utils.set_option(NOVA_COMPUTE_CONF, 'vncserver_proxyclient_address',
@@ -409,7 +407,8 @@ def configure_ml2_plugin_vxlan(neutron_mysql_username='neutron',
                                local_ip='127.0.0.1'):
     # TODO Fix that when ml2-neutron-plugin will be added in icehouse
     sudo('mkdir -p /etc/neutron/plugins/ml2')
-    sudo('ln -s %s %s' % (OVS_PLUGIN_CONF, ML2_PLUGIN_CONF))
+    with settings(warn_only=True):
+        sudo('ln -s %s %s' % (OVS_PLUGIN_CONF, ML2_PLUGIN_CONF))
     sudo('echo "''" > %s' % OVS_PLUGIN_CONF)
     sudo('echo [ml2] >> %s' % OVS_PLUGIN_CONF)
     sudo('echo [ovs] >> %s' % OVS_PLUGIN_CONF)
