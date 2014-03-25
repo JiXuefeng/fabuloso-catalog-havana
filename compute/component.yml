@@ -68,4 +68,12 @@ Services:
       description: Configure the rescue image available if any
       methods:
           - configure_rescue_image
+    - name: configure_migrations
+      description: Configure the server to perform resizes and live migrations
+      methods:
+          - configure_migrations
+    - name: configure_snapshots
+      description: Configure how to do the snapshots
+      methods:
+          - configure_snapshots
 

@@ -234,6 +234,7 @@ def add_glance_user():
 
 def configure_ntp(ntpHost="automation"):
     """Change default ntp server to client choice"""
+    package_ensure('ntp')
     sudo("sed -i 's/server ntp.ubuntu.com/server %s/g' /etc/ntp.conf" %
          ntpHost)
     sudo("service ntp stop")
@@ -260,15 +261,17 @@ def add_repos():
     with settings(warn_only=True):
         sudo('echo "''" > /etc/apt/sources.list.d/stackops.list')
 
-    # Install Ubuntu cloud repos keys
-    package_ensure('ubuntu-cloud-keyring')
-
     sudo('sed -i /precise-updates/d /etc/apt/sources.list')
     sudo('sed -i /precise-security/d /etc/apt/sources.list')
     sudo('sed -i /archive.ubuntu.com/d /etc/apt/sources.list')
 
     for repo in REPOS:
         files.append('/etc/apt/sources.list', repo, use_sudo=True)
+
+    sudo('apt-get -y update')
+
+    # Install Ubuntu cloud repos keys
+    package_ensure('ubuntu-cloud-keyring')
 
     sudo('apt-get -y update')
 

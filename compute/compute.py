@@ -308,6 +308,9 @@ def set_config_file(management_ip=None, controller_host=None, vncproxy_host=None
     utils.set_option(NOVA_COMPUTE_CONF, 'allow_same_net_traffic',
                      'True')
     utils.set_option(NOVA_COMPUTE_CONF, 'allow_resize_to_same_host', 'True')
+    utils.set_option(NOVA_COMPUTE_CONF, 'snapshot_compression', 'True')
+    utils.set_option(NOVA_COMPUTE_CONF, 'snapshot_image_format', 'qcow2')
+
     start()
 
 
@@ -542,7 +545,7 @@ def create_volume(partition='/dev/sdb1', name='nova-volume'):
     sudo('vgcreate %s %s' % (name, partition))
 
 
-def configure_lvm_storage(name='nova-volume', sparse='True'):
+def configure_lvm_storage(name='nova-volume', sparse='False'):
     utils.set_option(NOVA_COMPUTE_CONF, 'libvirt_images_type', 'lvm')
     utils.set_option(NOVA_COMPUTE_CONF, 'libvirt_images_volume_group', name)
     utils.set_option(NOVA_COMPUTE_CONF, 'libvirt_sparse_logical_volumes', sparse)
@@ -576,6 +579,11 @@ def configure_rescue_image(uuid=None):
     utils.set_option(NOVA_COMPUTE_CONF, 'rescue_image_id', uuid)
     start()
 
+def configure_snapshots(snapshot_compression='True', snapshot_image_format='qcow2'):
+    stop()
+    utils.set_option(NOVA_COMPUTE_CONF, 'snapshot_compression', 'True')
+    utils.set_option(NOVA_COMPUTE_CONF, 'snapshot_image_format', 'qcow2')
+    start()
 
 def configure_network(iface_bridge='eth0 eth1', br_postfix='bond0',
                       management_bridge="br-mgmt", vxlan_bridge="br-vxlan",
@@ -611,3 +619,47 @@ def configure_network(iface_bridge='eth0 eth1', br_postfix='bond0',
     except:
         print sys.exc_info()[0]
         raise
+
+
+def configure_migrations(nova_pass="nova"):
+    sudo("usermod -s /bin/bash nova")
+    sudo("echo 'nova:%s'|chpasswd" % nova_pass)
+    sudo("su nova -c 'rm -fR /var/lib/nova/.ssh'")
+    sudo("su nova -c 'mkdir /var/lib/nova/.ssh'")
+    sudo("su nova -c 'chmod 700 /var/lib/nova/.ssh'")
+    sudo('''su nova -c 'echo "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQC07jNnA1g7O7H7Ka+tbuQyiMn12IjtbGY+8RJrUU11jjlM3llZhJhyBgoNP864cOL37j0uVE+SxXfmxwY0glupX0KvgvS8dd9v0T0R04giS/eM4b1CGHAg/EquklA/WGQ/LHJtaQf8hUdjTo7EshY8k7c0LvixBC9dnaYxSg5bkpxDCIoZ9Z/eYkoJxyhw2/cxc/hxvprLsNC1uBCKCNlqhDF9+Qm+rTzeHfLmVJCmcjnrIERce0dqbxcI+e7sDGPS/kAYZpNg5rhEDOQbw8qly8vxNGM8vdMyKIokzatBWsd2NwqoFI4Kv59I2WvsTkpUE3yl+uyaXL42h+WEDuF1 contactus@stackops.com" > /var/lib/nova/.ssh/authorized_keys' ''')
+    sudo('''su nova -c 'echo "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQC07jNnA1g7O7H7Ka+tbuQyiMn12IjtbGY+8RJrUU11jjlM3llZhJhyBgoNP864cOL37j0uVE+SxXfmxwY0glupX0KvgvS8dd9v0T0R04giS/eM4b1CGHAg/EquklA/WGQ/LHJtaQf8hUdjTo7EshY8k7c0LvixBC9dnaYxSg5bkpxDCIoZ9Z/eYkoJxyhw2/cxc/hxvprLsNC1uBCKCNlqhDF9+Qm+rTzeHfLmVJCmcjnrIERce0dqbxcI+e7sDGPS/kAYZpNg5rhEDOQbw8qly8vxNGM8vdMyKIokzatBWsd2NwqoFI4Kv59I2WvsTkpUE3yl+uyaXL42h+WEDuF1 contactus@stackops.com" > /var/lib/nova/.ssh/id_rsa.pub' ''')
+    sudo("su nova -c 'chmod 600 /var/lib/nova/.ssh/authorized_keys'")
+    nonsecurekey = text_strip_margin('''
+    |-----BEGIN RSA PRIVATE KEY-----
+    |MIIEowIBAAKCAQEAtO4zZwNYOzux+ymvrW7kMojJ9diI7WxmPvESa1FNdY45TN5Z
+    |WYSYcgYKDT/OuHDi9+49LlRPksV35scGNIJbqV9Cr4L0vHXfb9E9EdOIIkv3jOG9
+    |QhhwIPxKrpJQP1hkPyxybWkH/IVHY06OxLIWPJO3NC74sQQvXZ2mMUoOW5KcQwiK
+    |GfWf3mJKCccocNv3MXP4cb6ay7DQtbgQigjZaoQxffkJvq083h3y5lSQpnI56yBE
+    |XHtHam8XCPnu7Axj0v5AGGaTYOa4RAzkG8PKpcvL8TRjPL3TMiiKJM2rQVrHdjcK
+    |qBSOCr+fSNlr7E5KVBN8pfrsmly+NoflhA7hdQIDAQABAoIBAQCyz2rrlsmfGJsI
+    |TyV48MwECV4XYt3IT0YpVFTQzPQRhvKoPmLtbna+0asjdvkVHTOitcevPtG5iwC5
+    |id5fDKoMFMIx9OlsS837kz2YnYa/5nYLvJkvdjly0AP6zU0TnYbNTF72NEQZU5q+
+    |0UeVqy8AxTfdEcLkJu+sxH4X3kmcQvhz2q7L2pbSgZ0JeL1Nfxmy0cjsSKEVy3qY
+    |0tLVm4xHStoYNBpzgXyBqhz/wAhOcctUyl5qvpNzgR+ihASNRKYKIGcpjgjaSryk
+    |0Gp8WmwrSuy1qQ8iqKRkSa5SSWqwl1umWlb1V8+7m4ic0A/GJEhzJ5pfXPMaOQuF
+    |eHG60JNNAoGBAOyA1R1US5mjoaIZmahR2Rl6nYFQQy3HNqQy1AZU5hB4uTrMA2eW
+    |sSxt1RMBjlE9C0sUOFB95w48/gZNI6JPdMFGgcux5WrndDruY8txiVl3rw2Dw7Ih
+    |JMxNBsJRO0AZgijUm11HPBp/tJ4HjppZiqE0exjoNFGOLc/l4VOZ1PbDAoGBAMPY
+    |j0dS7eHcsmu+v6EpxbRFwSyZG0eV51IiT0DFLfiSpsfmtHdA1ZQeqbVadM1WJSLu
+    |ZJ8uvGNRnuLgz2vwKdI6kJFfWYZSS5jfnl874/OF6riNQDseX5CvB5zQvTFVmae+
+    |Mld4x2NYFxQ1vIWnGITGQKhcZonBMyAjaQ9tAnNnAoGASvTOFpyX1VryKHEarSk7
+    |uIKPFuP8Vq7z13iwkE0qGYBZnJP6ZENzZdRtmrd8hqzlPmdrLb+pkm6sSAz8xT2P
+    |kI4rJwb74jT3NpJFmL4kPPHczli7lmJAymuDP+UE9VzgTtaLYzXni7J76TYV8T99
+    |23fJp+w4YLzCMkj2cEuqHocCgYBb2KEBMwwqw4TNcOyP2XZFn/0DPF6FyPBuHXcL
+    |ii2QCL68ux5hWv+O8n5mdaCXd9H8us5ntNRWw71+6y17kmsak6qe8peandekPyMX
+    |yI+T8nbszBmWYB0zTlKEoYRIsbtY5qLXUOY5WeOg776U85NVGWDTVFomOnwOk2y+
+    |9kGS+wKBgD3cL/zabIv/kK7KY84EdWdVH4sal3bRsiNn4ezj7go/ObMgR59O4Lr4
+    |fYqT1igILotduz/knlkleY2fsqltStWYzRrG+/zNryIBco2+cIX8T120AnpbAvlP
+    |gj0YVjuLJXSC9w/URFG+ZGg0kX0Koy1yS6fuxikiA4f5Lw9znjaD
+    |-----END RSA PRIVATE KEY-----
+    |''')
+    file_write('/tmp/id_rsa', nonsecurekey, sudo=False)
+    sudo("su nova -c 'cp /tmp/id_rsa /var/lib/nova/.ssh/id_rsa'")
+    sudo("su nova -c 'chmod 600 /var/lib/nova/.ssh/id_rsa*'")
+    sudo("echo '  StrictHostKeyChecking no' >> /etc/ssh/ssh_config")
