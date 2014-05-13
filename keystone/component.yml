@@ -18,6 +18,8 @@ Services:
           - define_portal_service
           - define_accounting_service
           - define_chargeback_service
+          - define_swift_service
+          - define_dnsaas_service
     - name: install_no_db
       description:  Install OpenStack Keystone from ubuntu packages
       methods:
@@ -35,6 +37,8 @@ Services:
           - define_portal_service
           - define_accounting_service
           - define_chargeback_service
+          - define_swift_service
+          - define_dnsaas_service
     - name: register_portal
       description: Register the portal service and the endpoint
       methods:
@@ -51,6 +55,10 @@ Services:
       description: Register the OpenStack's Swift service and endpoint
       methods:
         - define_swift_service
+    - name: register_designate
+      description: Register the OpenStack's DNAAS service and endpoint
+      methods:
+        - define_dnsaas_service
     - name: validate
       description: Validates keystone to operate with it and check the minimum requirements necessaries
       methods:

@@ -324,6 +324,21 @@ def define_portal_service(admin_token='stackops', region='RegionOne',
     _create_user_for_service(endpoint, portal_user, admin_token,
                              portal_password, 'service')
 
+def define_dnsaas_service(admin_token='stackops', region='RegionOne',
+                          endpoint="'http://localhost:35357/v2.0'",
+                          dnsaas_public_host='localhost',
+                          dnsaas_internal_host='localhost',
+                          dnsaas_user='designate',
+                          dnsaas_password='stackops'):
+    dnsaas_public_url = 'http://' + dnsaas_public_host + '/designate'
+    dnsaas_internal_url = 'http://' + dnsaas_internal_host + ':9001/v1'
+    dnsaas_admin_url = 'http://' + dnsaas_internal_host + ':9001/v1'
+    _create_service(admin_token, 'dns', 'dns', 'StackOps DNSaas '
+                                                     'Service', region,
+                    endpoint, dnsaas_public_url,
+                    dnsaas_internal_url, dnsaas_admin_url)
+    _create_user_for_service(endpoint, dnsaas_user, admin_token,
+                             dnsaas_password, 'service')
 
 def define_accounting_service(admin_token='stackops', region='RegionOne',
                               endpoint="http://localhost:35357/v2.0",
