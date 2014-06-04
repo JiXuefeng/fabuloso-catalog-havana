@@ -48,10 +48,11 @@ def install():
     install_packages()
 
 def start():
-    stop()
-    pdns_start()
-    designate_api_start()
-    designate_central_start()
+    with settings(warn_only = True):
+        stop()
+        pdns_start()
+        designate_api_start()
+        designate_central_start()
 
 def stop():
     pdns_stop()
@@ -84,7 +85,7 @@ def add_repos():
     package_ensure('python-software-properties')
     sudo('apt-add-repository --yes ppa:designate-ppa/havana')
     sudo('apt-get -y update')
-    sudo('sudo apt-get upgrade --yes')
+#    sudo('sudo apt-get upgrade --yes')
 
 
 def set_config_file(mysql_username='designate', mysql_password='stackops',
@@ -92,7 +93,7 @@ def set_config_file(mysql_username='designate', mysql_password='stackops',
                     mysql_schema_designate ='designate',
                     mysql_schema_powerdns ='powerdns', user='designate',
                     password='stackops', auth_host='127.0.0.1',
-                    auth_port='35357', auth_protocol='http', tenant='service'):
+                    auth_port='35357', auth_protocol='http', tenant='service', rabbit_host='localhost', rabbit_password='guest'):
     utils.set_option(DESIGNATE_CONF, 'service:api',
                      'auth_strategy', 'keystone')
     utils.set_option(DESIGNATE_CONF, 'service:api',
@@ -115,6 +116,8 @@ def set_config_file(mysql_username='designate', mysql_password='stackops',
     auth_uri = 'http://' + auth_host + ':5000/v2.0'
     utils.set_option(DESIGNATE_CONF, 'auth_uri',
                      auth_uri, section='keystone_authtoken')
+    utils.set_option(DESIGNATE_CONF, 'auth_strategy',
+                     'keystone', section='[service:api]')
     utils.set_option(DESIGNATE_CONF, 'backend_driver',
                      'powerdns', section='service:central')
     utils.set_option(DESIGNATE_CONF, 'database_connection',
@@ -130,17 +133,24 @@ def set_config_file(mysql_username='designate', mysql_password='stackops',
                                               mysql_port,
                                               mysql_schema_powerdns,
                                               mysql_username),
-                     section='storage:sqlalchemy')
-    sudo('designate-manage database-init')
+                     section='backend:powerdns')
+    utils.set_option(DESIGNATE_CONF, 'rabbit_host', rabbit_host)
+    utils.set_option(DESIGNATE_CONF, 'rabbit_password', rabbit_password)
+    utils.set_option(DESIGNATE_CONF, 'notification_driver', 'designate.openstack.common.notifier.rpc_notifier')
+    utils.set_option(DESIGNATE_CONF, 'notification_topics', 'notifications,monitor')
+
+    with settings(warn_only = True):
+        sudo('designate-manage database-init')
     sudo('designate-manage database-sync')
-    sudo('designate-manage powerdns database-init')
+    with settings(warn_only = True):
+        sudo('designate-manage powerdns database-init')
     sudo('designate-manage powerdns database-sync')
 
     #PowerDNS configuration
-    utils.set_option(POWERDNS_CONF, 'launch', 'gmysql')
-    utils.set_option(POWERDNS_CONF, 'gmysql-host', mysql_host)
-    utils.set_option(POWERDNS_CONF, 'gmysql-port', mysql_port)
-    utils.set_option(POWERDNS_CONF, 'gmysql-dbname', mysql_schema_powerdns)
-    utils.set_option(POWERDNS_CONF, 'gmysql-user', mysql_username)
-    utils.set_option(POWERDNS_CONF, 'gmysql-password', mysql_password)
-    utils.set_option(POWERDNS_CONF, 'gmysql-dnssec', 'yes')
+    utils.modify_property(POWERDNS_CONF, 'launch', 'gmysql')
+    utils.modify_property(POWERDNS_CONF, 'gmysql-host', mysql_host)
+    utils.modify_property(POWERDNS_CONF, 'gmysql-port', mysql_port)
+    utils.modify_property(POWERDNS_CONF, 'gmysql-dbname', mysql_schema_powerdns)
+    utils.modify_property(POWERDNS_CONF, 'gmysql-user', mysql_username)
+    utils.modify_property(POWERDNS_CONF, 'gmysql-password', mysql_password)
+    utils.modify_property(POWERDNS_CONF, 'gmysql-dnssec', 'yes')

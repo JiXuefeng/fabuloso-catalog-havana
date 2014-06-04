@@ -4,11 +4,15 @@ description: DNS as a service
 
 Services:
     - name: install
-      description: Install and configure component file
+      description: Install designate and PowerDNS
       methods:
           - install
-          - start
     - name: start
-      description: Start PowerDNS and Designate service
+      description: Start PowerDNS and Designate services
       methods:
           - start
+    - name: set_config_file
+      description: Configure the PowerDNS and Designate services
+      methods:
+          - set_config_file
+
