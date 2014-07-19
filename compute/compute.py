@@ -308,6 +308,7 @@ def set_config_file(management_ip=None, controller_host=None, vncproxy_host=None
     utils.set_option(NOVA_COMPUTE_CONF, 'allow_same_net_traffic',
                      'True')
     utils.set_option(NOVA_COMPUTE_CONF, 'allow_resize_to_same_host', 'True')
+    utils.set_option(NOVA_COMPUTE_CONF, 'resize_confirm_window', '3600')
     utils.set_option(NOVA_COMPUTE_CONF, 'snapshot_compression', 'True')
     utils.set_option(NOVA_COMPUTE_CONF, 'snapshot_image_format', 'qcow2')
     utils.set_option(NOVA_COMPUTE_CONF, 'start_guests_on_host_boot', 'false')
